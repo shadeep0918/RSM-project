@@ -5,13 +5,16 @@ import './App.css';
 function App() {
   const [products, setProducts] = useState([]);
   
-  // This state holds the data for the new product form
+  // State for the text data
   const [newProduct, setNewProduct] = useState({
     name: '',
     description: '',
     price: '',
     category: ''
   });
+
+  // NEW: State for the actual physical image file
+  const [imageFile, setImageFile] = useState(null);
 
   useEffect(() => {
     fetchProducts();
@@ -26,20 +29,41 @@ function App() {
     }
   };
 
-  // Updates the state when you type in the input boxes
   const handleInputChange = (e) => {
     setNewProduct({ ...newProduct, [e.target.name]: e.target.value });
   };
 
-  // Sends the new product to Spring Boot when you click "Add"
+  // NEW: Saves the file when you click "Choose File"
+  const handleFileChange = (e) => {
+    setImageFile(e.target.files[0]);
+  };
+
+  // UPDATED: Sends a "Multipart Form" with the physical file
   const handleSubmit = async (e) => {
     e.preventDefault();
+    
+    // We MUST use FormData to send files over the internet
+    const formData = new FormData();
+    formData.append("name", newProduct.name);
+    formData.append("description", newProduct.description);
+    formData.append("price", newProduct.price);
+    formData.append("category", newProduct.category);
+    
+    if (imageFile) {
+      formData.append("image", imageFile);
+    }
+
     try {
-      await axios.post("http://localhost:8080/api/products", newProduct);
-      // Clear the form boxes
+      await axios.post("http://localhost:8080/api/products", formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
+      
+      // Clear the form
       setNewProduct({ name: '', description: '', price: '', category: '' });
-      // Refresh the products list immediately!
-      fetchProducts();
+      setImageFile(null);
+      document.getElementById("imageInput").value = ""; // Reset file UI
+      
+      fetchProducts(); // Refresh the grid
     } catch (error) {
       console.error("Error adding product:", error);
     }
@@ -52,7 +76,6 @@ function App() {
         <p>Premium Herbal Products</p>
       </header>
 
-      {/* --- ADD PRODUCT FORM --- */}
       <section className="form-section">
         <h2>Add a New Product</h2>
         <form onSubmit={handleSubmit} className="product-form">
@@ -60,17 +83,30 @@ function App() {
           <input type="text" name="description" placeholder="Description" value={newProduct.description} onChange={handleInputChange} required />
           <input type="number" name="price" placeholder="Price ($)" value={newProduct.price} onChange={handleInputChange} required />
           <input type="text" name="category" placeholder="Category" value={newProduct.category} onChange={handleInputChange} required />
+          
+          {/* NEW: The File Upload Input */}
+          <input type="file" id="imageInput" accept="image/*" onChange={handleFileChange} required />
+          
           <button type="submit" className="glow-btn">Add Product</button>
         </form>
       </section>
 
-      {/* --- PRODUCT GRID --- */}
       <main className="product-grid">
         {products.length === 0 ? (
           <p>No products found in the database yet..!</p>
         ) : (
           products.map((product) => (
             <div key={product.id} className="product-card">
+              
+              {/* NEW: Display the image from our Spring Boot server! */}
+              {product.imageUrl && (
+                <img 
+                  src={`http://localhost:8080${product.imageUrl}`} 
+                  alt={product.name} 
+                  className="product-image"
+                />
+              )}
+              
               <h3>{product.name}</h3>
               <span className="category-badge">{product.category}</span>
               <p>{product.description}</p>
